@@ -1,0 +1,86 @@
+package com.jun.message.annotation;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+import org.apache.kafka.common.serialization.StringDeserializer;
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface MessageController {
+	String[] bootstrapServers();
+	String topic();
+	String allowAutoCreateTopics() default "true";
+	String autoCommitIntervalMs() default "5000";
+	String autoOffsetReset() default "latest";
+	String checkCrcs() default "true";
+	String clientDnsLookup() default "use_all_dns_ips";
+	String clientId() default "consumer-event-1";
+	String clientRack() default "";
+	String connectionsMaxIdleMs() default "540000";
+	String defaultApiTimeoutMs() default "60000";
+	String enableAutoCommit() default "true";
+	String excludeInternalTopics() default "true";
+	String fetchMaxBytes() default "52428800";
+	String fetchMaxWaitMs() default "500";
+	String fetchMinBytes() default "1";
+	String groupId();
+	String groupInstanceId() default "null";
+	String heartbeatIntervalMs() default "3000";
+	String interceptorClasses() default "[]";
+	String internalLeaveGroupOnClose() default "true";
+	String internalThrowOnFetchStableOffsetUnsupported() default "false";
+	String isolationLevel() default "read_uncommitted";
+	String keyDeserializer() default "org.apache.kafka.common.serialization.StringDeserializer";
+	String maxPartitionFetchBytes() default "1048576";
+	String maxPollIntervalMs() default "300000";
+	String maxPollRecords() default "500";
+	String metadataMaxAgeMs() default "300000";
+	String metricReporters() default "[]";
+	String metricsNumSamples() default "2";
+	String metricsRecordingLevel() default "INFO";
+	String metricsSampleWindowMs() default "30000";
+	String partitionAssignmentStrategy() default "org.apache.kafka.clients.consumer.RangeAssignor";
+	String receiveBufferBytes() default "65536";
+	String reconnectBackoffMaxMs() default "1000";
+	String reconnectBackoffMs() default "50";
+	String requestTimeoutMs() default "30000";
+	String retryBackoffMs() default "100";
+	String saslClientCallbackHandlerClass() default "null";
+	String saslJaasConfig() default "null";
+	String saslKerberosKinitCmd() default "/usr/bin/kinit";
+	String saslKerberosMinTimeBeforeRelogin() default "60000";
+	String saslKerberosServiceName() default "null";
+	String saslKerberosTicketRenewJitter() default "0.05";
+	String saslKerberosTicketRenewWindowFactor() default "0.8";
+	String saslLoginCallbackHandlerClass() default "null";
+	String saslLoginClass() default "null";
+	String saslLoginRefreshBufferSeconds() default "300";
+	String saslLoginRefreshMinPeriodSeconds() default "60";
+	String saslLoginRefreshWindowFactor() default "0.8";
+	String saslLoginRefreshWindowJitter() default "0.05";
+	String saslMechanism() default "GSSAPI";
+	String securityProtocol() default "PLAINTEXT";
+	String securityProviders() default "null";
+	String sendBufferBytes() default "131072";
+	String sessionTimeoutMs() default "10000";
+	String sslCipherSuites() default "null";
+	String sslEnabledProtocols() default "[TLSv1.2]";
+	String sslEndpointIdentificationAlgorithm() default "https";
+	String sslEngineFactoryClass() default "null";
+	String sslKeyPassword() default "null";
+	String sslKeymanagerAlgorithm() default "SunX509";
+	String sslKeystoreLocation() default "null";
+	String sslKeystorePassword() default "null";
+	String sslKeystoreType() default "JKS";
+	String sslProtocol() default "TLSv1.2";
+	String sslProvider() default "null";
+	String sslSecureRandomImplementation() default "null";
+	String sslTrustmanagerAlgorithm() default "PKIX";
+	String sslTruststoreLocation() default "null";
+	String sslTruststorePassword() default "null";
+	String sslTruststoreType() default "JKS";
+	String valueDeserializer() default "org.apache.kafka.common.serialization.StringDeserializer";
+}
