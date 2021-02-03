@@ -1,6 +1,5 @@
 package com.jun.message.listener;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Duration;
@@ -10,14 +9,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.type.filter.RegexPatternTypeFilter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,26 +29,19 @@ import com.jun.message.annotation.MessageController;
 import com.jun.message.annotation.MessageMapping;
 import com.jun.message.message.Message;
 
-public class MessageListener {
-	private static List<Object> kafkaControllers = new ArrayList<>();
-	private static Integer consumerCount = 0;
-	private final ObjectMapper objectMapper = new ObjectMapper();
-	public MessageListener() {}
+public abstract class MessageListener {
+	protected static List<Object> kafkaControllers = new ArrayList<>();
+	protected static Integer consumerCount = 0;
+	protected final ObjectMapper objectMapper = new ObjectMapper();
+	protected static final Logger LOGGER = LoggerFactory.getLogger(MessageListener.class);
+	protected static final String PREFIX_THREAD_NAME = "consumer-";
+	protected String basePackage;
 	
-	public MessageListener(String basePackage) {
-		listen(basePackage);
-	}
+	protected MessageListener() {}
 	
-	public void listen(String basePackage) {
-		addKafkaControllerObject(basePackage);
-		handle();
-	}
-
-	/**
-	 * KafkaController 어노테이션이 붙어있는 클래스를 찾아서 객체를 생성후 list에 추가한다.
-	 * @param basePackage
-	 */
-	private void addKafkaControllerObject(String basePackage) {
+	public abstract void listen();
+	
+	protected void addMessageControllerObject(String basePackage, Consumer<Object> consumer) {
 		ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
 		provider.addIncludeFilter(new RegexPatternTypeFilter(Pattern.compile(".*")));
 		Set<BeanDefinition> beanDefinitions = provider.findCandidateComponents(basePackage);
@@ -56,30 +52,27 @@ public class MessageListener {
 			} catch (ClassNotFoundException e) {
 				e.printStackTrace();
 			}
-			Annotation[] annotations = clazz.getAnnotations();
-			for(Annotation annotation : annotations) {
-				if(annotation.annotationType().equals(MessageController.class)) {
-					try {
-						kafkaControllers.add(clazz.newInstance());
-					} catch (InstantiationException | IllegalAccessException e) {
-						e.printStackTrace();
-					}
+			
+			MessageController messageController = clazz.getDeclaredAnnotation(MessageController.class);
+			if(messageController != null) {
+				try {
+					Object obj = clazz.newInstance();
+					consumer.accept(obj);
+//					context.registerBean(obj.getClass().getCanonicalName(), Object.class, () -> obj);
+//					kafkaControllers.add(obj);
+				} catch (InstantiationException | IllegalAccessException e) {
+					e.printStackTrace();
 				}
 			}
 		}
 	}
-	
-	private void handle() {
-		// 클래스 레벨에 KafkaController 어노테이션이 붙어있는 객체들
-		for(Object controller : MessageListener.kafkaControllers) {
-			Annotation[] cAnnotations = controller.getClass().getAnnotations();
-			for(Annotation cAnnotation : cAnnotations) {
-				// 클래스 레벨 어노테이션이 KafkaController일 경우 새로운 쓰레드에서 메세지를 받는다.
-				if(cAnnotation.annotationType().equals(MessageController.class)) {
-					consumerCount++;
-					execute(controller, cAnnotation);
-				}
-			}
+
+	protected void handle(MessageController messageController, Object controller) {
+		if(messageController != null) {
+			// 클래스 레벨 어노테이션이 KafkaController일 경우 새로운 쓰레드에서 메세지를 받는다.
+			LOGGER.debug("Add thread '{}' message",PREFIX_THREAD_NAME + consumerCount);
+			consumerCount++;
+			execute(controller, messageController);
 		}
 	}
 	
@@ -98,30 +91,27 @@ public class MessageListener {
 		
 		Method[] methods = controller.getClass().getDeclaredMethods();
 		for(Method method : methods) {
-			Annotation[] annotations = method.getDeclaredAnnotations();
-			for(Annotation annotation : annotations) {
-				if(annotation.annotationType().equals(MessageMapping.class)) {
-					String value = ((MessageMapping)annotation).value();
-					if(message.getType().equals(value)) {
-						try {
-							method.invoke(controller, message);
-						} catch (IllegalAccessException | IllegalArgumentException
-								| InvocationTargetException e) {
-							e.printStackTrace();
-						}
+			MessageMapping annotation = method.getDeclaredAnnotation(MessageMapping.class);
+			if(annotation != null) {
+				if(message.getType().equals(annotation.value())) {
+					try {
+						method.invoke(controller, message);
+					} catch (IllegalAccessException | IllegalArgumentException
+							| InvocationTargetException e) {
+						e.printStackTrace();
 					}
 				}
 			}
 		}
 	}
 	
-	private void execute(Object controller, Annotation cAnnotation) {
+	protected void execute(Object controller, MessageController messageController) {
 		new Thread(() ->  {
 			
-			String topic = ((MessageController)cAnnotation).topic();
+			String topic = messageController.topic();
 			
 			// 카프카 기본 설정
-			Properties properties = kafkaConfigProperties(cAnnotation);
+			Properties properties = kafkaConfigProperties(messageController);
 			
 			try(KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(properties)) {
 				// 구독
@@ -133,12 +123,12 @@ public class MessageListener {
 					}
 				}
 			}
-		},"consumer-"+consumerCount).start();
+		},PREFIX_THREAD_NAME + consumerCount).start();
 	}
 	
-private Properties kafkaConfigProperties(Annotation cAnnotation) {
-		String[] bootstrapServers = ((MessageController)cAnnotation).bootstrapServers(); 
-		String groupId = ((MessageController)cAnnotation).groupId();
+	protected Properties kafkaConfigProperties(MessageController messageController) {
+		String[] bootstrapServers = ((MessageController)messageController).bootstrapServers(); 
+		String groupId = ((MessageController)messageController).groupId();
 //		String allowAutoCreateTopics = ((KafkaController)cAnnotation).allowAutoCreateTopics();
 //		String autoCommitIntervalMs = ((KafkaController)cAnnotation).autoCommitIntervalMs();
 //		String autoOffsetReset = ((KafkaController)cAnnotation).autoOffsetReset();

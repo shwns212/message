@@ -9,8 +9,11 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jun.message.exception.FailedMessageDeserializeException;
+import com.jun.message.exception.FailedMessageSerializeException;
+import com.jun.message.listener.MessageListener;
+import com.jun.message.listener.SpringMessageListener;
 import com.jun.message.message.Message;
 
 public class MessageSender {
@@ -56,10 +59,11 @@ public class MessageSender {
 	
 	private void send(Message message, BiConsumer<KafkaProducer<String, String>, ProducerRecord<String, String>> consumer) {
 		try(KafkaProducer<String, String> producer = new KafkaProducer<String, String>(this.properties)) {
+			message.bodyToMap(); // Deserialize가 가능한지 확인 불가능할 경우 예외
 			ProducerRecord<String, String> record = new ProducerRecord<String, String>(topic, new ObjectMapper().writeValueAsString(message));
 			consumer.accept(producer, record);
 		}catch(JsonProcessingException e) {
-			throw new FailedMessageDeserializeException(e);
+			throw new FailedMessageSerializeException(e);
 		}
 	}
 
